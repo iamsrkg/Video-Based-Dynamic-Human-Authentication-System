@@ -16,6 +16,20 @@ import time
 import tkinter.ttk as ttk
 import tkinter.font as font
 
+# Folders and files the app writes to; create them up front so a fresh clone runs.
+TRAINING_DIR = "TrainingImage"
+MODEL_PATH = os.path.join("TrainingImageLabel", "Trainner.yml")
+VISITORS_CSV = os.path.join("visitor_detail", "visitor_detail.csv")
+UNKNOWN_DIR = "ImagesUnknown"
+RECORD_DIR = "record"
+CASCADE_PATH = "haarcascade_frontalface_default.xml"
+
+for folder in (TRAINING_DIR, os.path.dirname(MODEL_PATH), os.path.dirname(VISITORS_CSV), UNKNOWN_DIR, RECORD_DIR):
+    os.makedirs(folder, exist_ok=True)
+if not os.path.exists(VISITORS_CSV):
+    with open(VISITORS_CSV, 'w', newline='') as f:
+        csv.writer(f).writerow(['Id', 'Name'])
+
 window = tk.Tk()
 #helv36 = tk.Font(family='Helvetica', size=36, weight='bold')
 window.title("Face_Recogniser")
@@ -111,11 +125,13 @@ def TakeImages():
     name=(txt2.get())
     if(is_number(Id) and name.isalpha()):
         cam = cv2.VideoCapture(0)
-        harcascadePath = "haarcascade_frontalface_default.xml"
-        detector=cv2.CascadeClassifier(harcascadePath)
+        detector=cv2.CascadeClassifier(CASCADE_PATH)
         sampleNum=0
         while(True):
             ret, img = cam.read()
+            if not ret:
+                message.configure(text="No camera frame. Is a webcam connected?")
+                break
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             faces = detector.detectMultiScale(gray, 1.3, 5)
             for (x,y,w,h) in faces:
@@ -123,7 +139,7 @@ def TakeImages():
                 #incrementing sample number 
                 sampleNum=sampleNum+1
                 #saving the captured face in the dataset folder TrainingImage
-                cv2.imwrite("TrainingImage/ "+name +"."+Id +'.'+ str(sampleNum) + ".jpg", gray[y:y+h,x:x+w])
+                cv2.imwrite(os.path.join(TRAINING_DIR, name + "." + Id + "." + str(sampleNum) + ".jpg"), gray[y:y+h,x:x+w])
                 #display the frame
                 cv2.imshow('frame',img)
             #wait for 100 miliseconds 
@@ -136,7 +152,7 @@ def TakeImages():
         cv2.destroyAllWindows() 
         res = "Images Saved for ID : " + Id +" Name : "+ name
         row = [Id , name]
-        with open('visitor_detail/visitor_detail.csv','a+') as csvFile:
+        with open(VISITORS_CSV, 'a+', newline='') as csvFile:
             writer = csv.writer(csvFile)
             writer.writerow(row)
         csvFile.close()
@@ -150,18 +166,20 @@ def TakeImages():
             message.configure(text= res)
     
 def TrainImages():
-    recognizer = cv2.face_LBPHFaceRecognizer.create()#recognizer = cv2.face.LBPHFaceRecognizer_create()#$cv2.createLBPHFaceRecognizer()
-    harcascadePath = "haarcascade_frontalface_default.xml"
-    detector =cv2.CascadeClassifier(harcascadePath)
-    faces,Id = getImagesAndLabels("TrainingImage")
+    # cv2.face ships in opencv-contrib-python; this is the OpenCV 4 API name.
+    recognizer = cv2.face.LBPHFaceRecognizer_create()
+    faces,Id = getImagesAndLabels(TRAINING_DIR)
+    if not faces:
+        message.configure(text="No training images yet. Use 'Take Images' first.")
+        return
     recognizer.train(faces, np.array(Id))
-    recognizer.save("TrainingImageLabel\Trainner.yml")
+    recognizer.save(MODEL_PATH)
     res = "Image Trained"#+",".join(str(f) for f in Id)
     message.configure(text= res)
 
 def getImagesAndLabels(path):
     #get the path of all the files in the folder
-    imagePaths=[os.path.join(path,f) for f in os.listdir(path)] 
+    imagePaths=[os.path.join(path,f) for f in os.listdir(path) if f.lower().endswith('.jpg')]
     #print(imagePaths)
     
     #create empth face list
@@ -182,17 +200,22 @@ def getImagesAndLabels(path):
     return faces,Ids
 
 def TrackImages():
-    recognizer = cv2.face.LBPHFaceRecognizer_create()#cv2.createLBPHFaceRecognizer()
-    recognizer.read("TrainingImageLabel\Trainner.yml")
-    harcascadePath = "haarcascade_frontalface_default.xml"
-    faceCascade = cv2.CascadeClassifier(harcascadePath);    
-    df=pd.read_csv("visitor_detail/visitor_detail.csv")
+    if not os.path.exists(MODEL_PATH):
+        message2.configure(text="No trained model yet. Use 'Train Images' first.")
+        return
+    recognizer = cv2.face.LBPHFaceRecognizer_create()
+    recognizer.read(MODEL_PATH)
+    faceCascade = cv2.CascadeClassifier(CASCADE_PATH)
+    df=pd.read_csv(VISITORS_CSV)
     cam = cv2.VideoCapture(0)
     font = cv2.FONT_HERSHEY_SIMPLEX        
     col_names =  ['Id','Name','Date','Time']
     record = pd.DataFrame(columns = col_names)    
     while True:
         ret, im =cam.read()
+        if not ret:
+            message2.configure(text="No camera frame. Is a webcam connected?")
+            break
         gray=cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
         faces=faceCascade.detectMultiScale(gray, 1.2,5)    
         for(x,y,w,h) in faces:
@@ -202,7 +225,8 @@ def TrackImages():
                 ts = time.time()      
                 date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
                 timeStamp = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
-                aa=df.loc[df['Id'] == Id]['Name'].values
+                names=df.loc[df['Id'] == Id]['Name'].values
+                aa=str(names[0]) if len(names) else 'Unregistered'
                 tt=str(Id)+"-"+aa
                 record.loc[len(record)] = [Id,aa,date,timeStamp]
                 
@@ -210,8 +234,8 @@ def TrackImages():
                 Id='Unknown'                
                 tt=str(Id)  
             if(conf > 75):
-                noOfFile=len(os.listdir("ImagesUnknown"))+1
-                cv2.imwrite("ImagesUnknown/Image"+str(noOfFile) + ".jpg", im[y:y+h,x:x+w])            
+                noOfFile=len(os.listdir(UNKNOWN_DIR))+1
+                cv2.imwrite(os.path.join(UNKNOWN_DIR, "Image"+str(noOfFile) + ".jpg"), im[y:y+h,x:x+w])
             cv2.putText(im,str(tt),(x,y+h), font, 1,(255,255,255),2)        
         record=record.drop_duplicates(subset=['Id'],keep='first')    
         cv2.imshow('im',im) 
@@ -221,7 +245,7 @@ def TrackImages():
     date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
     timeStamp = datetime.datetime.fromtimestamp(ts).strftime('%H:%M:%S')
     Hour,Minute,Second=timeStamp.split(":")
-    fileName="record/record_"+date+"_"+Hour+"-"+Minute+"-"+Second+".csv"
+    fileName=os.path.join(RECORD_DIR, "record_"+date+"_"+Hour+"-"+Minute+"-"+Second+".csv")
     record.to_csv(fileName,index=False)
     cam.release()
     cv2.destroyAllWindows()

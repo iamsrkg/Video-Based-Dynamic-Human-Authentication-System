@@ -72,9 +72,11 @@ function drawBoxes(boxes, frameW) {
   octx.clearRect(0, 0, overlay.width, overlay.height);
   octx.lineWidth = 3; octx.font = '600 20px system-ui, sans-serif';
   for (const b of boxes) {
+    // The video is shown mirrored (like a mirror), so boxes are flipped here and the text stays readable.
+    const x = overlay.width - (b.x + b.w) * k;
     octx.strokeStyle = b.color; octx.fillStyle = b.color;
-    octx.strokeRect(b.x * k, b.y * k, b.w * k, b.h * k);
-    if (b.label) octx.fillText(b.label, b.x * k, (b.y + b.h) * k + 24);
+    octx.strokeRect(x, b.y * k, b.w * k, b.h * k);
+    if (b.label) octx.fillText(b.label, x, (b.y + b.h) * k + 24);
   }
 }
 
@@ -90,7 +92,19 @@ async function startCamera() {
   video.srcObject = stream;
   await video.play();
   $('placeholder').hidden = true;
+  $('cam-state').hidden = false;
+  stream.getVideoTracks()[0].addEventListener('ended', stopCamera);   // e.g. permission revoked
   return true;
+}
+
+function stopCamera() {
+  tracking = false;
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null;
+  video.srcObject = null;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  $('placeholder').hidden = false;
+  $('cam-state').hidden = true;
 }
 
 // ---------------------------------------------------------------- 1 · take images
@@ -123,7 +137,8 @@ $('enroll').addEventListener('click', async () => {
   busy = true; tracking = false;
   const faces = [];
   $('enroll-msg').textContent = 'Look at the camera and move your head a little…';
-  while (faces.length < SAMPLES && stream) {
+  const deadline = Date.now() + 40000;                       // don't wait forever for a face
+  while (faces.length < SAMPLES && stream && Date.now() < deadline) {
     const frame = frameFrom(video, video.videoWidth, video.videoHeight);
     const found = await detectFaces(frame, 1.3, 5);               // train.py: detectMultiScale(gray, 1.3, 5)
     drawBoxes(found.map((f) => ({ ...f, color: '#5cc8ff' })), grab.width);
@@ -131,8 +146,15 @@ $('enroll').addEventListener('click', async () => {
     $('enroll-bar').style.width = `${(faces.length / SAMPLES) * 100}%`;
     await sleep(100);                                        // train.py: waitKey(100)
   }
-  addFaces(person, faces);
-  $('enroll-msg').textContent = `Images saved for ID ${person.id}, name ${person.name}`;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!faces.length) {
+    $('enroll-msg').textContent = 'No face seen. Face the camera in good light and try again.';
+  } else {
+    addFaces(person, faces);
+    $('enroll-msg').textContent = faces.length < SAMPLES
+      ? `Saved ${faces.length} images for ID ${person.id}, name ${person.name} (stopped after 40 s)`
+      : `Images saved for ID ${person.id}, name ${person.name}`;
+  }
   busy = false;
 });
 
@@ -227,4 +249,5 @@ $('csv').addEventListener('click', () => {
 });
 
 $('cam').addEventListener('click', startCamera);
+$('cam-off').addEventListener('click', stopCamera);
 status('loading OpenCV in a worker…', 'wait');

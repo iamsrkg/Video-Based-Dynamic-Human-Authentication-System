@@ -2,6 +2,8 @@
 
 A desktop app that recognizes people passing a gate from a live webcam feed and **logs who entered and when**. Unknown faces are saved for review.
 
+**▶ Try it live in your browser: https://iamsrkg.github.io/Video-Based-Dynamic-Human-Authentication-System/** (camera or photos; nothing leaves your device)
+
 Published as a research paper in the *International Journal of Advanced Science and Technology* (IJAST, SERSC).
 
 ## How it works
@@ -28,6 +30,20 @@ The app creates its data folders on first run (`TrainingImage/`, `TrainingImageL
 
 ### Tested
 The enrollment → training → recognition pipeline is smoke-tested headlessly, with synthetic face images, against Python 3.12 and OpenCV 5.0 (contrib). The live capture and tracking loops need a physical webcam.
+
+## Web version (`web/`)
+The same take images → train → track flow, running entirely in the browser:
+- **Detection:** OpenCV.js 4.12 with the same Haar cascade and the same `detectMultiScale` parameters as `train.py`. It runs in a **Web Worker**, so compiling the ~10 MB wasm never freezes the page. (OpenCV 5 moved `CascadeClassifier` out of the core build, which is why it's pinned to 4.12.)
+- **Recognition:** `web/lbph.js`, a JavaScript port of OpenCV's LBPH: the extended LBP operator, an 8×8 grid of normalized histograms, and chi-square nearest neighbour. It's unit-tested in `web/lbph.test.mjs`.
+- **Same decisions:** distance < 50 is logged once per person, and > 75 is saved as unknown. Both thresholds are adjustable, and the visitor record downloads as the same `record_<date>_<time>.csv`.
+- **Privacy:** frames, faces and the model stay in the tab, and a reload wipes them.
+
+```bash
+node --test web/lbph.test.mjs          # tests
+# serve web/ plus the cascade file with any static server, e.g.
+cp haarcascade_frontalface_default.xml web/ && npx serve web
+```
+GitHub Actions runs the tests and deploys to GitHub Pages on every push.
 
 ## Stack
 Python · OpenCV (Haar cascade + LBPH) · NumPy · pandas · Pillow · Tkinter

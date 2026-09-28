@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Gate · Video-Based Human Authentication</title>
+  <meta name="description" content="Enroll a face, train an LBPH model and log who walks past the camera. The Python app, ported to the browser. Nothing leaves your device.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="wrap head">
+      <div>
+        <h1>Face Gate</h1>
+        <p class="sub">Video-based human authentication, running in your browser. The same pipeline as the <a href="https://github.com/iamsrkg/Video-Based-Dynamic-Human-Authentication-System">Python app</a>: Haar-cascade detection with OpenCV, then an LBPH recognizer.</p>
+      </div>
+      <p class="status" id="status"><span class="led"></span> loading OpenCV…</p>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="stage">
+      <div class="viewport">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="placeholder" id="placeholder">
+          <p>Camera is off.</p>
+          <button type="button" id="cam">Start camera</button>
+          <p class="small">No camera? Every step also takes photos: use the "or photos" buttons.</p>
+        </div>
+      </div>
+      <p class="privacy">🔒 Everything runs on this device. Frames, faces and the model never leave your browser, and a reload wipes them.</p>
+    </section>
+
+    <section class="steps">
+      <article class="step" id="step-enroll">
+        <h2><span>1</span> Take images</h2>
+        <p class="hint">Enter an ID (numbers) and a name (letters), like the original app. It saves 60 face crops.</p>
+        <div class="row">
+          <input id="pid" inputmode="numeric" placeholder="ID, e.g. 1" autocomplete="off">
+          <input id="pname" placeholder="Name, e.g. Asha" autocomplete="off">
+        </div>
+        <div class="row">
+          <button type="button" id="enroll">Take images</button>
+          <label class="file">or photos <input type="file" id="enroll-files" accept="image/*" multiple></label>
+        </div>
+        <div class="progress"><span id="enroll-bar"></span></div>
+        <p class="msg" id="enroll-msg"></p>
+        <ul class="people" id="people"></ul>
+      </article>
+
+      <article class="step" id="step-train">
+        <h2><span>2</span> Train images</h2>
+        <p class="hint">Builds an LBPH model: an 8×8 grid of local-binary-pattern histograms per face.</p>
+        <button type="button" id="train" disabled>Train images</button>
+        <p class="msg" id="train-msg"></p>
+      </article>
+
+      <article class="step" id="step-track">
+        <h2><span>3</span> Track images</h2>
+        <p class="hint">Distance below <b id="known-v">50</b> counts as a match and is logged once per person. Above <b id="unknown-v">75</b>, the face is saved as unknown.</p>
+        <div class="sliders">
+          <label>match below <input type="range" id="known" min="20" max="120" value="50"></label>
+          <label>unknown above <input type="range" id="unknown" min="30" max="150" value="75"></label>
+        </div>
+        <div class="row">
+          <button type="button" id="track" disabled>Start tracking</button>
+          <label class="file">or a photo <input type="file" id="track-file" accept="image/*" disabled></label>
+        </div>
+        <p class="msg" id="track-msg"></p>
+      </article>
+    </section>
+
+    <section class="log">
+      <div class="log-head">
+        <h2>Visitor record</h2>
+        <button type="button" id="csv" disabled>Download CSV</button>
+      </div>
+      <table>
+        <thead><tr><th>Id</th><th>Name</th><th>Date</th><th>Time</th><th>distance</th></tr></thead>
+        <tbody id="record"><tr class="empty"><td colspan="5">Nobody yet.</td></tr></tbody>
+      </table>
+      <h3>Unknown faces</h3>
+      <div class="unknown" id="unknown-faces"><p class="small">None saved.</p></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <a href="https://github.com/iamsrkg/Video-Based-Dynamic-Human-Authentication-System">Source on GitHub</a> ·
+    <a href="https://iamsrkg.github.io/">Sudheer Kumar Gupta</a>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

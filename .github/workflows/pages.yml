@@ -1,0 +1,38 @@
+name: Test and deploy the web version
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: LBPH port tests
+        run: node --test web/lbph.test.mjs
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp web/index.html web/style.css web/app.js web/cv-worker.js web/lbph.js _site/
+          cp haarcascade_frontalface_default.xml _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+      - id: deployment
+        uses: actions/deploy-pages@v4

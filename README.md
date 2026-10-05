@@ -4,8 +4,6 @@ A desktop app that recognizes people passing a gate from a live webcam feed and 
 
 **▶ Try it live in your browser: https://iamsrkg.github.io/Video-Based-Dynamic-Human-Authentication-System/** (camera or photos; nothing leaves your device)
 
-Published as a research paper in the *International Journal of Advanced Science and Technology* (IJAST, SERSC).
-
 ## How it works
 
 1. **Enroll** (*Take Images*): enter a numeric ID and a name. The app captures about 60 face crops from the webcam using a **Haar cascade** detector (`haarcascade_frontalface_default.xml`) and saves them as grayscale images.

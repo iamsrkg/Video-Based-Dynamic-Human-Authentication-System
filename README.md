@@ -6,6 +6,26 @@ A desktop app that recognizes people passing a gate from a live webcam feed and 
 
 ## How it works
 
+```mermaid
+flowchart LR
+    subgraph Enroll
+        C1[Camera or photos] --> D1[Haar cascade finds the face]
+        D1 --> S1[Grayscale face crops saved under the person ID]
+    end
+    subgraph Train
+        S1 --> T[LBPH model learns each person]
+    end
+    subgraph Recognize
+        C2[Live camera frame] --> D2[Haar cascade finds each face]
+        D2 --> P[LBPH predicts an ID and a distance]
+        P -->|distance under 50| L[Known: ID, name, date and time go into the record]
+        P -->|distance over 75| U[Unknown: face crop saved for review]
+        L --> CSV[Session record written as CSV]
+    end
+    T --> P
+```
+
+
 1. **Enroll** (*Take Images*): enter a numeric ID and a name. The app captures about 60 face crops from the webcam using a **Haar cascade** detector (`haarcascade_frontalface_default.xml`) and saves them as grayscale images.
 2. **Train** (*Train Images*): trains an **LBPH** (Local Binary Pattern Histograms) face recognizer (OpenCV `cv2.face`) on the enrolled faces and saves the model.
 3. **Recognize** (*Track Images*): for each detected face in the live feed, the model predicts an ID and a confidence distance:
